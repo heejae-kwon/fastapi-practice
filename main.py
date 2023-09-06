@@ -1,14 +1,13 @@
 from datetime import datetime
-from fastapi import FastAPI, UploadFile
 from pathlib import Path
-from fastapi_test.image_processing import pre
+
+from fastapi_test.image_processing import pre, post, landmark_task_1
+
+from fastapi import FastAPI, File, UploadFile, Form
+from fastapi.responses import FileResponse, JSONResponse
 
 import json
-
-PRE_UPLOAD_FOLDER = './pre_process_task_files'
-POST_UPLOAD_FOLDER = './post_process_task_files'
-# app.config['PRE_UPLOAD_FOLDER'] = PRE_UPLOAD_FOLDER
-# app.config['POST_UPLOAD_FOLDER'] = POST_UPLOAD_FOLDER
+import zipfile
 
 
 app = FastAPI()
@@ -20,49 +19,73 @@ async def root():
 
 
 # ALLOWED_EXTENSIONS = set(['txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'])
+
+
+PRE_UPLOAD_FOLDER = Path('./pre_process_task_files')
+POST_UPLOAD_FOLDER = Path('./post_process_task_files')
+
+
 @app.post('/api/server/pre_processing')
 async def pre_processing(image_file: UploadFile):
-    # check if the post request has the file part
-    '''
-    if 'image_file' not in request.files:
-        flash('No file part')
-        return redirect(request.url)
-    '''
-    # if user does not select file, browser also
-    # submit a empty part without filename
-    '''
-    if file.filename == '':
-        flash('No selected file')
-        return redirect(request.url)
-    # if file and allowed_file(file.filename):
-    '''
-    if image_file.filename == '':
-        return
+    if not image_file:
+        return JSONResponse(content={'error': 'No file uploaded'}, status_code=400)
 
-    file = await image_file.read()
-    if file:
-        filename = (image_file.filename)
-        nowDate = datetime.now()
-        sub_folder_name = nowDate.strftime("%Y%m%d%H%M%S%f")
-        sub_folder_path = Path('PRE_UPLOAD_FOLDER' +
-                               '/' + sub_folder_name)
-        '''
-        if not os.path.exists(sub_folder_path):
-            try:
-                os.makedirs(sub_folder_path)
-            except Exception as e:
-                print(e)
-        '''
-        sub_folder_path.mkdir(exist_ok=True)
+    now_date = datetime.now()
+    sub_folder_name = now_date.strftime("%Y%m%d%H%M%S%f")
+    sub_folder_path = PRE_UPLOAD_FOLDER / sub_folder_name
 
-        filename_path = sub_folder_path / Path(filename)
+    sub_folder_path.mkdir(parents=True, exist_ok=True)
 
-        # file.save(os.path.join(sub_folder_path, filename))
-        with filename_path.open("wb") as fp:
-            fp.write(file)
-        print('check point')
-        pre_result = pre(image_file_path=str(filename_path),
-                         # (sub_folder_path + "/" + filename)
-                         task_id=sub_folder_name)
-        pre_result_json = json.dumps(pre_result)
-        return pre_result_json
+    file_path = sub_folder_path / str(image_file.filename)
+
+    with file_path.open('wb') as file:
+        file.write(await image_file.read())
+
+    # Assuming you have a pre-processing function
+    pre_result = await pre(image_file_path=str(file_path), task_id=sub_folder_name)
+    pre_result_json = json.dumps(pre_result)
+
+    return JSONResponse(content=pre_result_json)
+
+
+@app.post('/api/server/post_processing')
+async def post_processing(
+    task_id: str = Form(...),
+    json_file: UploadFile = File(...),
+    zip_file: UploadFile = File(...)
+):
+    task_folder_path = POST_UPLOAD_FOLDER / task_id
+    task_folder_path.mkdir(parents=True, exist_ok=True)
+
+    # Save files
+    zip_file_path = task_folder_path / 'zip_file.zip'
+    json_file_path = task_folder_path / 'output.json'
+
+    with zip_file_path.open('wb') as zf:
+        zf.write(await zip_file.read())
+
+    with json_file_path.open('wb') as jf:
+        jf.write(await json_file.read())
+
+    # Unzip files
+    with zipfile.ZipFile(zip_file_path, 'r') as zf:
+        zf.extractall(task_folder_path)
+
+    with json_file_path.open('r') as jf:
+        jsonData = json.load(jf)
+        await post(task_folder_path, outputData=jsonData['output'])
+    await landmark_task_1(task_folder_path)
+
+    # Call post() and landmark_task_1() functions here with task_folder_path
+
+    zip_file_name = f'{task_id}_result.zip'
+    zip_file_output_path = task_folder_path / zip_file_name
+
+    with zipfile.ZipFile(zip_file_output_path, 'w') as zf:
+        zf.write(zip_file_path, 'zip_file.zip')
+
+    return FileResponse(
+        zip_file_output_path,
+        media_type='application/zip',
+        headers={'Content-Disposition': f'attachment; filename={zip_file_name}'}
+    )
