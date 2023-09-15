@@ -26,7 +26,7 @@ You will be able to:
 
 tags_metadata = [
     {
-        "name": "/",
+        "name": "root",
         "description": "The first entry point",
     },
     {
@@ -53,7 +53,7 @@ app = FastAPI(title="ChimichangApp",
               )
 
 
-@app.get("/", tags=["/"])
+@app.get("/", tags=["root"])
 async def root():
     return {"message": "Hello API"}
 
@@ -61,7 +61,7 @@ async def root():
 TEMP_UPLOAD_FOLDER = Path('./temp_process_task_files')
 
 
-@app.post('/api/server/temp_processing')
+@app.post('/api/server/temp_processing', tags=["temp_processing"])
 async def temp_processing(
     zip_file: Annotated[UploadFile, File(description="Zip file that contains image,depth,ply files")],
     clothes_type:  Annotated[int, Query(description="type of clothes")],
