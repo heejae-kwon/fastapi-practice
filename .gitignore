@@ -1,1 +1,4 @@
 **/__pycache__/**
+temp_process_task_files/
+gunicorn-access.log
+test_hrnet.tflite

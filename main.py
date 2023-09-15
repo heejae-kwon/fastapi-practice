@@ -1,91 +1,101 @@
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from fastapi import FastAPI, File, UploadFile, Depends, Query
+from fastapi.responses import FileResponse
+from typing import Annotated
 
-from fastapi_test.image_processing import pre, post, landmark_task_1
-
-from fastapi import FastAPI, File, UploadFile, Form
-from fastapi.responses import FileResponse, JSONResponse
-
-import json
+from fastapi_test.rgb_to_json import run_temp_processing
 import zipfile
 
 
-app = FastAPI()
+description = """
+ChimichangApp API helps you do awesome stuff. 🚀
+
+## Items
+
+You can **read items**.
+
+## Users
+
+You will be able to:
+
+* **Create users** (_not implemented_).
+* **Read users** (_not implemented_).
+"""
+
+tags_metadata = [
+    {
+        "name": "/",
+        "description": "The first entry point",
+    },
+    {
+        "name": "temp_processing",
+        "description": "Run the temp process",
+    },
+]
+
+app = FastAPI(title="ChimichangApp",
+              description=description,
+              summary="Deadpool's favorite app. Nuff said.",
+              version="0.0.1",
+              terms_of_service="http://example.com/terms/",
+              contact={
+                  "name": "Deadpoolio the Amazing",
+                  "url": "http://x-force.example.com/contact/",
+                  "email": "dp@x-force.example.com",
+              },
+              license_info={
+                  "name": "Apache 2.0",
+                  "identifier": "MIT",
+              },
+              openapi_tags=tags_metadata
+              )
 
 
-@app.get("/")
+@app.get("/", tags=["/"])
 async def root():
     return {"message": "Hello API"}
 
 
-# ALLOWED_EXTENSIONS = set(['txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'])
+TEMP_UPLOAD_FOLDER = Path('./temp_process_task_files')
 
 
-PRE_UPLOAD_FOLDER = Path('./pre_process_task_files')
-POST_UPLOAD_FOLDER = Path('./post_process_task_files')
+@app.post('/api/server/temp_processing')
+async def temp_processing(
+    zip_file: Annotated[UploadFile, File(description="Zip file that contains image,depth,ply files")],
+    clothes_type:  Annotated[int, Query(description="type of clothes")],
+    model_version: Annotated[int, Query(description="version of model")]
 
-
-@app.post('/api/server/pre_processing')
-async def pre_processing(image_file: UploadFile):
-    if not image_file:
-        return JSONResponse(content={'error': 'No file uploaded'}, status_code=400)
+):
+    if not zip_file:
+        return {"error": "No file uploaded"}
 
     now_date = datetime.now()
     sub_folder_name = now_date.strftime("%Y%m%d%H%M%S%f")
-    sub_folder_path = PRE_UPLOAD_FOLDER / sub_folder_name
+    task_folder_path = TEMP_UPLOAD_FOLDER / sub_folder_name
+    task_id = sub_folder_name
 
-    sub_folder_path.mkdir(parents=True, exist_ok=True)
-
-    file_path = sub_folder_path / str(image_file.filename)
-
-    with file_path.open('wb') as file:
-        file.write(await image_file.read())
-
-    # Assuming you have a pre-processing function
-    pre_result = await pre(image_file_path=str(file_path), task_id=sub_folder_name)
-    pre_result_json = json.dumps(pre_result)
-
-    return JSONResponse(content=pre_result_json)
-
-
-@app.post('/api/server/post_processing')
-async def post_processing(
-    task_id: str = Form(...),
-    json_file: UploadFile = File(...),
-    zip_file: UploadFile = File(...)
-):
-    task_folder_path = POST_UPLOAD_FOLDER / task_id
     task_folder_path.mkdir(parents=True, exist_ok=True)
 
-    # Save files
     zip_file_path = task_folder_path / 'zip_file.zip'
-    json_file_path = task_folder_path / 'output.json'
-
-    with zip_file_path.open('wb') as zf:
-        zf.write(await zip_file.read())
-
-    with json_file_path.open('wb') as jf:
-        jf.write(await json_file.read())
+    with zip_file_path.open("wb") as f:
+        f.write(await zip_file.read())
 
     # Unzip files
-    with zipfile.ZipFile(zip_file_path, 'r') as zf:
-        zf.extractall(task_folder_path)
+    with zipfile.ZipFile(zip_file_path, 'r') as unzip_file:
+        unzip_file.extractall(task_folder_path)
 
-    with json_file_path.open('r') as jf:
-        jsonData = json.load(jf)
-        await post(task_folder_path, outputData=jsonData['output'])
-    await landmark_task_1(task_folder_path)
+    await run_temp_processing(task_folder_path=task_folder_path,
+                              tflite_model_path=Path('test_hrnet.tflite'),
+                              clothes_type=clothes_type,
+                              model_version=model_version)
 
-    # Call post() and landmark_task_1() functions here with task_folder_path
-
-    zip_file_name = f'{task_id}_result.zip'
-    zip_file_output_path = task_folder_path / zip_file_name
-
-    with zipfile.ZipFile(zip_file_output_path, 'w') as zf:
-        zf.write(zip_file_path, 'zip_file.zip')
-
+    # Return the result file as a response
+    result_image_path = task_folder_path / 'result_image_v1.png'
     return FileResponse(
-        zip_file_output_path,
-        media_type='application/zip',
-        headers={'Content-Disposition': f'attachment; filename={zip_file_name}'}
+        result_image_path,
+        media_type='image/png',
+        headers={
+            "Content-Disposition": f"attachment; filename={task_id}_result_image_v1.png"}
     )

@@ -1,28 +1,23 @@
+from utils.json_to_landmark.text_position_info import position_info
+from utils.json_to_landmark.size_info import getSizingPts
+from utils.json_to_landmark.pyutils import getImageRatio_V2, _kps1d_to_2d, _kps_downscale, get_proj_depth_V2
+from plyfile import PlyData
+from pyntcloud import PyntCloud
 import cv2
+import imageio as iio
+from PIL import Image
+import pandas as pd
 import numpy as np
 import json
-import pandas as pd
-import iio
-import torch
-import torchvision.transforms as transforms
-
-from PIL import Image
-from pyntcloud import PyntCloud
-from plyfile import PlyData
-
-from pathlib import Path
+from utils.json_to_landmark.pyutils import _kps1d_to_2d, getImageRatio, _kps_downscale, get_proj_depth, get_distance
 from collections import defaultdict
-from convert_json.utils.data_utils import (
-    get_gt_class_keypoints_dict)
-from convert_json.utils.infer_utils import (
-    get_final_preds, transform_preds,
-    _coco_keypoint_results_all_category_kernel)
+
+from convert_json.utils.data_utils import get_affine_transform, normalize, get_gt_class_keypoints_dict
+from convert_json.utils.infer_utils import get_final_preds, transform_preds, _coco_keypoint_results_all_category_kernel
 from convert_json.utils.nms import oks_nms
-from utils.json_to_landmark.pyutils import (
-    getImageRatio_V2,  get_proj_depth_V2, _kps1d_to_2d, getImageRatio,
-    _kps_downscale, get_proj_depth, get_distance)
-from utils.json_to_landmark.size_info import getSizingPts
-from utils.json_to_landmark.text_position_info import position_info
+
+import tensorflow as tf
+from pathlib import Path
 
 # Data Settings
 IMAGE_SIZE = [288, 384]
@@ -30,7 +25,7 @@ IMG_MEAN, IMG_STD = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
 C, S = np.array([959.5, 719.5]), np.array(
     [11.368751, 15.158334])  # center, scale
 
-# post-processing of prediction settings
+# post-processing of prediction setiings
 target_weight = np.load('target_weight.npy')  # FIXED ???
 gt_class_keypoints_dict = get_gt_class_keypoints_dict()  # fixed dictionary
 heatmap_height = 96  # = config.MODEL.HEATMAP_SIZE[1]
@@ -41,51 +36,46 @@ NUM_JOINTS = 294
 IN_VIS_THRE = 0.2
 OKS_THRE = 0.9
 
-clothes_type = 1
 
-# hyper-params
-FX_DEPTH = 5.8262448167737955e+02
-FY_DEPTH = 5.8269103270988637e+02
-CX_DEPTH = 3.1304475870804731e+02
-CY_DEPTH = 2.3844389626620386e+02
-deg = 0.275
+async def run_temp_processing(task_folder_path: Path,
+                              tflite_model_path: Path,
+                              model_version=1,
+                              clothes_type=1):
 
+    # 1 : 반팔 , 7 : 반바지 , 8 : 긴바지(pants)
+    img_file = task_folder_path / 'image_file.jpg'
+    res_file = task_folder_path / 'keypoint.json'
 
-async def pre(image_file_path, task_id):
-    # tflite_file = 'test_hrnet.tflite'
-    # print('tflite_file : ', tflite_file)
+    # Model(TFLite) Load
+    tflite_file = 'test_hrnet.tflite'
+    print('tflite_file : ', tflite_file)
+    # Load the TFLite model and allocate tensors
+    interpreter = tf.lite.Interpreter(
+        model_path=str(tflite_model_path.absolute()))
+    interpreter.allocate_tensors()
 
-    # Load the TFLite model and allocate tensors (Note: Replace this with PyTorch model loading)
-    # Assuming you have a PyTorch model saved as 'your_model.pth'
-    model = torch.load('your_model.pth')
-    model.eval()
+    # Get input and output details(including the shape)
+    input_details = interpreter.get_input_details()
+    output_details = interpreter.get_output_details()
+    input_shape = input_details[0]['shape']
 
     # Data load and transform
-    data_numpy = cv2.imread(
-        image_file_path, cv2.IMREAD_COLOR | cv2.IMREAD_IGNORE_ORIENTATION)
-    # c, s, r = C, S, 0
+    data_numpy = cv2.imread(str(img_file), cv2.IMREAD_COLOR |
+                            cv2.IMREAD_IGNORE_ORIENTATION)
+    c, s, r = C, S, 0
+    trans = get_affine_transform(c, s, r, IMAGE_SIZE)
+    input_data = cv2.warpAffine(data_numpy, trans,
+                                (int(IMAGE_SIZE[0]), int(IMAGE_SIZE[1])),
+                                flags=cv2.INTER_LINEAR)
+    input_data = normalize(input_data, IMG_MEAN, IMG_STD)
+    input_data = np.array(input_data, dtype=np.float32)
+    input_data = np.expand_dims(input_data, axis=0).transpose(0, 3, 1, 2)
+    print('input_data.shape : ', input_data.shape)
 
-    # Perform the same data preprocessing using PyTorch tensors
-    transform = transforms.Compose([
-        transforms.ToPILImage(),
-        transforms.Resize((IMAGE_SIZE[1], IMAGE_SIZE[0])),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=IMG_MEAN, std=IMG_STD)
-    ])
-
-    input_data = transform(data_numpy).unsqueeze(0)
-    np.save(task_id + '_TEST_input_data', input_data.numpy())
-
-    # Run inference with the PyTorch model
-    with torch.no_grad():
-        output = model(input_data)
-
-    return {'task_id': task_id, 'input_data': output.tolist()}
-
-
-async def post(task_folder_path: str, outputData):
-    output = np.reshape(
-        outputData, (heatmap_width, heatmap_height, NUM_JOINTS, num_samples)).T
+    # Model input and output
+    interpreter.set_tensor(input_details[0]['index'], input_data)
+    interpreter.invoke()
+    output = interpreter.get_tensor(output_details[0]['index'])
 
     # for final-result
     all_preds = np.zeros((num_samples, NUM_JOINTS, 3), dtype=np.float32)
@@ -95,7 +85,7 @@ async def post(task_folder_path: str, outputData):
     idx = 0
 
     num_images = 1  # one image
-    cat_ids = [1]  # 반팔=1 ,
+    cat_ids = [clothes_type]  # 반팔=1 ,
     c = np.expand_dims(C, 0)
     s = np.expand_dims(S, 0)
     score = [1]  # fixed
@@ -107,7 +97,9 @@ async def post(task_folder_path: str, outputData):
     # like pytorch _scatter -> ex) channel_mask[j].scatter_(0, index, 1)
     for i in index:
         channel_mask[0][i] = [1]
-    output = output * np.expand_dims(channel_mask, axis=3)
+
+    mask = np.expand_dims(channel_mask, axis=3)
+    output = output * mask
 
     preds_local, maxvals = get_final_preds(
         heatmap_height, heatmap_width, output, c, s)
@@ -123,7 +115,7 @@ async def post(task_folder_path: str, outputData):
     # double check this all_boxes parts
     all_boxes[idx:idx + num_images, 0:2] = c[:, 0:2]
     all_boxes[idx:idx + num_images, 2:4] = s[:, 0:2]
-    all_boxes[idx:idx + num_images, 4] = np.prod(s*200, 1)
+    all_boxes[idx:idx + num_images, 4] = np.prod(s * 200, 1)
     all_boxes[idx:idx + num_images, 5] = score
     all_boxes[idx:idx + num_images, 6] = np.array(cat_ids)
 
@@ -169,35 +161,50 @@ async def post(task_folder_path: str, outputData):
     # json write
     results = _coco_keypoint_results_all_category_kernel(
         oks_nmsed_kpts, NUM_JOINTS)
-    res_file_path = task_folder_path + '/' + 'keypoint.json'
-    with open(res_file_path, 'w') as f:
+    with open(res_file, 'w') as f:
         json.dump(results, f, sort_keys=True, indent=4)
-
     print(
-        f'Successfully saved the model result for the RGB image as a json file ! ---> {res_file_path} ')
-    return res_file_path
+        f'Successfully saved the model result for the RGB image as a json file ! ---> {res_file} ')
+
+    if model_version == 1:
+        await landmark_task_1(task_folder_path, clothes_type)
+    elif model_version == 2:
+        await landmark_task_2(task_folder_path, clothes_type)
+
+    # zipFileName = task_id + "_result.zip"
+    # zf = zipfile.ZipFile(os.path.join(task_folder_path, zipFileName), "w")
+    # # 결과 파일을 압축합니다.
+    # zf.write(os.path.join(task_folder_path, 'result_image_v1.png'))
+    # zf.write(os.path.join(task_folder_path, 'result_kpt_v1.json'))
+    # zf.close()
+    return
 
 
-async def landmark_task_1(task_folder_path):
-    root = Path(task_folder_path)
-    print('root:', root)
+''' hyper-params '''
+deg = 0.275
 
-    # File Load
-    predicted_json_file = root / 'keypoint.json'
-    print('predicted_json_file:', predicted_json_file)
-    with open(predicted_json_file, 'r') as f:
+
+async def landmark_task_1(task_folder_path, clothes_type):
+    root = task_folder_path
+    print('root :', root)
+
+    ''' File Load '''
+    predicted_json_file = task_folder_path / 'keypoint.json'
+    print('predicted_json_file : ', predicted_json_file)
+    with predicted_json_file.open('r') as f:
         predicted_json = json.load(f)
 
-    img_path = root / 'image_file.jpg'
-    ply_path = root / 'ply_file.ply'
-    print('img_path:', img_path)
-    print('ply_path:', ply_path)
+    img_path = task_folder_path / 'image_file.jpg'
+    ply_path = task_folder_path / 'ply_file.ply'
+    print('img_path :', img_path)
+    print('ply_path :', ply_path)
 
     image = Image.open(img_path)
     ply = PlyData.read(ply_path)
-    print('image size:', image.size)
+    print('image size :', image.size)
+    ''' '''
 
-    # JSON to Landmark position & length (in cm) calculation
+    ''' json to Landmark position & length(cm) calculation '''
     measure_index, measure_points = getSizingPts(clothes_type)  # 1: 반팔
     w_r, h_r = getImageRatio(image, ply)
 
@@ -221,9 +228,12 @@ async def landmark_task_1(task_folder_path):
         size_ = get_distance(pt1, pt2, ply_dpt, deg=deg)
         result[name]['cm'] = round(size_, 2)
 
-    # Draw a circle, line, and length on an image
+    ''' '''
+
+    ''' Draw a circle, line and length on an image '''
     img_arr = np.asarray(image)
     text_pos = position_info(clothes_type)
+
     for r in result:
         pt1, pt2 = result[r]['pt1'], result[r]['pt2']
         cm = result[r]['cm']
@@ -241,59 +251,59 @@ async def landmark_task_1(task_folder_path):
                  (255, 0, 0),
                  thickness=4,
                  lineType=cv2.LINE_AA)
-        cv2.putText(img_arr,
-                    r,
-                    (pt2[0] +
-                     text_pos['Main'][0], pt2[1] +
-                     text_pos['Main'][1]),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    2, (255, 0, 0), 6)
-        cv2.putText(img_arr,
-                    f'({cm}cm)',
-                    (pt2[0] +
-                     text_pos[r][0], pt2[1] +
-                     text_pos[r][1]),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    2, (255, 0, 0), 6)
 
-    # Result image and JSON save
+        if text_pos != 0:
+            cv2.putText(img_arr, r, (pt2[0] + text_pos['Main'][0], pt2[1] + text_pos['Main'][1]), cv2.FONT_HERSHEY_SIMPLEX,
+                        2, (255, 0, 0), 6)
+            cv2.putText(img_arr, f'({cm}cm)', (pt2[0] + text_pos[r][0], pt2[1] + text_pos[r][1]), cv2.FONT_HERSHEY_SIMPLEX,
+                        2, (255, 0, 0), 6)
+
+    ''' result Image and json save'''
     print(result)
-    result_kpt_path = root / 'result_kpt_v1.json'
-    with open(result_kpt_path, 'w') as f:
+    with open(task_folder_path / 'result_kpt_v1.json', 'w') as f:
         json.dump(result, f)
 
     result_img = Image.fromarray(img_arr)
-    result_img.save(root / 'result_image_v1.png', 'png')
+    result_img.save(task_folder_path / 'result_image_v1.png', 'png')
 
-    print('Finish!')
-    print(f'Result JSON saved at: {result_kpt_path}')
-    print(f'Result image saved at: {root / "result_image_v1.png"}')
+    print('Finish !')
+    print(f'Result json save --> {task_folder_path / "result_kpt_v1.png"}')
+    print(f'Result Image save --> {task_folder_path / "result_image.png"}')
 
 
-async def landmark_task_2(task_folder_path):
-    root = Path(task_folder_path)
-    print('root:', root)
+''' hyper-params '''
+FX_DEPTH = 5.8262448167737955e+02
+FY_DEPTH = 5.8269103270988637e+02
+CX_DEPTH = 3.1304475870804731e+02
+CY_DEPTH = 2.3844389626620386e+02
 
-    # File Load
-    predicted_json_file = root / 'keypoint.json'
-    print('predicted_json_file:', predicted_json_file)
-    with open(predicted_json_file, 'r') as f:
+
+async def landmark_task_2(task_folder_path, clothes_type):
+    root = task_folder_path
+    print('root :', root)
+
+    ''' File Load '''
+    predicted_json_file = task_folder_path / 'keypoint.json'
+    print('predicted_json_file : ', predicted_json_file)
+    with predicted_json_file.open('r') as f:
         predicted_json = json.load(f)
 
-    img_path = root / 'image_file.jpg'
-    depth_path = root / 'depth_file.jpg'
+    img_path = task_folder_path / 'image_file.jpg'
+    depth_path = task_folder_path / 'depth_file.jpg'
     image = Image.open(img_path)
     depth_image = iio.imread(depth_path)
     depth_image = depth_image[:, :, 0]
-    print('img_path:', img_path)
-    print('depth_path:', depth_path)
-    print('image shape:', image.size)
-    print('depth_image shape:', depth_image.shape)  # (192, 256)
+    # depth_image = depth_image.transpose(1, 0) # 20230209 hm landmark_v2에서 업데이트 후 롤백
+    print('img_path :', img_path)
+    print('depth_path :', depth_path)
+    print('image shape : ', image.size)
+    print('depth_image shape : ', depth_image.shape)  # (192, 256)
+    ''' '''
 
-    # Make new_ply.ply & Load new_ply
+    ''' Make new_ply.ply & Load new_ply '''
     img_arr = np.asarray(image)
     pcd = []
-    height, width = 192, 256  # (192, 256)
+    height, width = depth_image.shape  # (192, 256)
     for i in range(height):
         for j in range(width):
             z = depth_image[i][j]
@@ -321,17 +331,19 @@ async def landmark_task_2(task_folder_path):
 
     ply = PlyData.read(root / 'new_ply.ply')
     assert ply['vertex'].count == 49152
+    ''' '''
 
-    # JSON to Landmark position & length (in cm) calculation
+    ''' json to Landmark position & length(cm) calculation '''
     measure_index, measure_points = getSizingPts(clothes_type)  # 1: 반팔
-    w_r, h_r = getImageRatio_V2(image, (192, 256))
+    w_r, h_r = getImageRatio_V2(image, depth_image.shape)
 
     predicted = predicted_json[0]
     pred_kpt1d = predicted['keypoints']
     kps_arr = _kps1d_to_2d(pred_kpt1d)
     kps_arr = _kps_downscale(kps_arr, (w_r, h_r))
     kps_dict = {i + 1: arr for i, arr in enumerate(kps_arr)}
-    ply_dpt = get_proj_depth_V2(ply, (192, 256))  # projected depth array
+    ply_dpt = get_proj_depth_V2(
+        ply, depth_image.shape)  # projected depth array
 
     result = {name: {'pt1': None, 'pt2': None, 'depth_pt1': None, 'depth_pt2': None, 'cm': None} for name in
               measure_index.values()}
@@ -339,6 +351,7 @@ async def landmark_task_2(task_folder_path):
         pt1, pt2 = [tuple(kps_dict[pt_key].astype(int))
                     for pt_key in measure_points[a]]
         result[name]['depth_pt1'] = int(pt1[0]), int(pt1[1])
+        # result[name]['depth_pt2'] = int(pt1[0]), int(pt1[1]) # 20230209 hm landmark_v2에서 업데이트 후 롤백
         result[name]['depth_pt2'] = int(pt2[0]), int(pt2[1])
         result[name]['pt1'] = int(pt1[0] * w_r), int(pt1[1] * h_r)
         result[name]['pt2'] = int(pt2[0] * w_r), int(pt2[1] * h_r)
@@ -348,7 +361,9 @@ async def landmark_task_2(task_folder_path):
         size_ = np.linalg.norm(point_a - point_b)
         result[name]['cm'] = float(str(size_)[:5])
 
-    # Draw a circle, line, and length on an image
+    ''' '''
+
+    ''' Draw a circle, line and length on an image '''
     img_arr = np.asarray(image)
     text_pos = position_info(clothes_type)
 
@@ -374,15 +389,10 @@ async def landmark_task_2(task_folder_path):
         cv2.putText(img_arr, f'({cm}cm)', (pt2[0] + text_pos[r][0], pt2[1] + text_pos[r][1]), cv2.FONT_HERSHEY_SIMPLEX,
                     2, (255, 0, 0), 6)
 
-    # Result image and JSON save
+    ''' result Image and json save'''
     print(result)
-    result_kpt_path = root / 'result_kpt_v2.json'
-    with open(result_kpt_path, 'w') as f:
+    with open(root / 'result_kpt_v1.json', 'w') as f:
         json.dump(result, f)
 
     result_img = Image.fromarray(img_arr)
-    result_img.save(root / 'result_image_v2.png', 'png')
-
-    print('Finish!')
-    print(f'Result JSON saved at: {result_kpt_path}')
-    print(f'Result image saved at: {root / "result_image_v2.png"}')
+    result_img.save(root / 'result_image_v1.png', 'png')
