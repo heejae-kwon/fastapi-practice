@@ -4,8 +4,9 @@ from pathlib import Path
 from fastapi import FastAPI, File, UploadFile, Depends, Query
 from fastapi.responses import FileResponse
 from typing import Annotated
+from rembg.rembg import run_rembg
 
-from fastapi_test.rgb_to_json import run_temp_processing
+from rgb_to_json.rgb_to_json import run_temp_processing
 import zipfile
 
 
@@ -98,4 +99,23 @@ async def temp_processing(
         media_type='image/png',
         headers={
             "Content-Disposition": f"attachment; filename={task_id}_result_image_v1.png"}
+    )
+
+
+@app.post('/api/server/rembg', tags=["rembg"])
+async def remove_background(
+    image_file: Annotated[UploadFile, File(
+        description="Image file to remove background")]
+):
+    image_file_path = Path('prof1.jpg')
+    with image_file_path.open("wb") as f:
+        f.write(await image_file.read())
+
+    result_image_path = await run_rembg(image_file_path)
+
+    return FileResponse(
+        result_image_path,
+        media_type='image/png',
+        headers={
+            "Content-Disposition": f"attachment; filename=result_image_v1.png"}
     )
