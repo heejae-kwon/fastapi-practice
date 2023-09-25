@@ -38,7 +38,7 @@ IN_VIS_THRE = 0.2
 OKS_THRE = 0.9
 
 
-async def run_temp_processing(task_folder_path: Path,
+def run_temp_processing(task_folder_path: Path,
                               tflite_model_path: Path,
                               model_version=1,
                               clothes_type=1):
@@ -168,9 +168,9 @@ async def run_temp_processing(task_folder_path: Path,
         f'Successfully saved the model result for the RGB image as a json file ! ---> {res_file} ')
 
     if model_version == 1:
-        await landmark_task_1(task_folder_path, clothes_type)
+        landmark_task_1(task_folder_path, clothes_type)
     elif model_version == 2:
-        await landmark_task_2(task_folder_path, clothes_type)
+        landmark_task_2(task_folder_path, clothes_type)
 
     # zipFileName = task_id + "_result.zip"
     # zf = zipfile.ZipFile(os.path.join(task_folder_path, zipFileName), "w")
@@ -185,7 +185,7 @@ async def run_temp_processing(task_folder_path: Path,
 deg = 0.275
 
 
-async def landmark_task_1(task_folder_path, clothes_type):
+def landmark_task_1(task_folder_path, clothes_type):
     root = task_folder_path
     print('root :', root)
 
@@ -279,7 +279,7 @@ CX_DEPTH = 3.1304475870804731e+02
 CY_DEPTH = 2.3844389626620386e+02
 
 
-async def landmark_task_2(task_folder_path, clothes_type):
+def landmark_task_2(task_folder_path, clothes_type):
     root = task_folder_path
     print('root :', root)
 
@@ -346,8 +346,9 @@ async def landmark_task_2(task_folder_path, clothes_type):
     ply_dpt = get_proj_depth_V2(
         ply, depth_image.shape)  # projected depth array
 
-    result = {name: {'pt1': None, 'pt2': None, 'depth_pt1': None, 'depth_pt2': None, 'cm': None} for name in
-              measure_index.values()}
+    result = {name: {'pt1': None, 'pt2': None,
+                     'depth_pt1': None, 'depth_pt2': None,
+                     'cm': None} for name in measure_index.values()}
     for a, name in measure_index.items():
         pt1, pt2 = [tuple(kps_dict[pt_key].astype(int))
                     for pt_key in measure_points[a]]
@@ -397,3 +398,7 @@ async def landmark_task_2(task_folder_path, clothes_type):
 
     result_img = Image.fromarray(img_arr)
     result_img.save(root / 'result_image_v1.png', 'png')
+
+
+if __name__ == '__main__':
+    run_temp_processing()

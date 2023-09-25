@@ -176,7 +176,7 @@ def remove_background(input_path, model, alpha_matting=False):
     return result_img
 
 
-async def run_rembg(image_path: Path):
+def run_rembg(image_path: Path):
     model_path = str(Path('./rembg_UNETPmodel2021_11_25.pt'))
     model_path = str(Path('./rembg_UNETmodel2021_11_25.pt'))
     # model_path = './rembg_UNETHUMANSEGmodel2021_11_25.pt'
