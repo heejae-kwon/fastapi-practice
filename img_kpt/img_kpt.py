@@ -38,7 +38,7 @@ IN_VIS_THRE = 0.2
 OKS_THRE = 0.9
 
 
-def run_temp_processing(task_folder_path: Path,
+def run_img_kpt_processing(task_folder_path: Path,
                               tflite_model_path: Path,
                               model_version=1,
                               clothes_type=1):
@@ -401,4 +401,4 @@ def landmark_task_2(task_folder_path, clothes_type):
 
 
 if __name__ == '__main__':
-    run_temp_processing()
+    run_img_kpt_processing()

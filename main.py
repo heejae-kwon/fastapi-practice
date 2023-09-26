@@ -1,31 +1,19 @@
-from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from fastapi import FastAPI, File, UploadFile, Query, Body
 from fastapi.responses import FileResponse
 from typing import Annotated
 
-from pydantic import Field
 from rembg.rembg import run_rembg
-from in_painting_with_stable_diffusion_using_diffusers.in_painting_with_stable_diffusion_using_diffusers import run_in_painting_with_stable_diffusion
-from rgb_to_json.rgb_to_json import run_temp_processing
+from inpainting.inpainting import run_in_painting_with_stable_diffusion
+from img_kpt.img_kpt import run_img_kpt_processing
+
 import zipfile
 
 
-description = """
-ChimichangApp API helps you do awesome stuff. 🚀
-
-## Items
-
-You can **read items**.
-
-## Users
-
-You will be able to:
-
-* **Create users** (_not implemented_).
-* **Read users** (_not implemented_).
-"""
+description = ""
+with open(Path('DESCRIPTION.md'), 'r') as f:
+    description = f.read()
 
 tags_metadata = [
     {
@@ -33,7 +21,7 @@ tags_metadata = [
         "description": "The first entry point of api",
     },
     {
-        "name": "temp_processing",
+        "name": "img-kpt",
         "description": "Get the size of clothes",
     },
     {
@@ -41,25 +29,14 @@ tags_metadata = [
         "description": "Remove the background of image",
     },
     {
-        "name": "stable-diffusion",
+        "name": "inpainting",
         "description": "Change image to another image",
     },
 ]
 
-app = FastAPI(title="ChimichangApp",
+app = FastAPI(title="Model API",
               description=description,
-              summary="Deadpool's favorite app. Nuff said.",
               version="0.0.1",
-              terms_of_service="http://example.com/terms/",
-              contact={
-                  "name": "Deadpoolio the Amazing",
-                  "url": "http://x-force.example.com/contact/",
-                  "email": "dp@x-force.example.com",
-              },
-              license_info={
-                  "name": "Apache 2.0",
-                  "identifier": "MIT",
-              },
               openapi_tags=tags_metadata
               )
 
@@ -80,7 +57,7 @@ async def root():
 TEMP_UPLOAD_FOLDER = Path('./temp_process_task_files')
 
 
-@app.post('/api/server/temp_processing', tags=["temp_processing"],
+@app.post('/api/img-kpt', tags=["img-kpt"],
           response_class=FileResponse,
           responses={
     200: {
@@ -92,7 +69,7 @@ Polar bear image.
         """,
     }
 })
-async def temp_processing(
+async def image_keypoint(
     zip_file: Annotated[UploadFile, File(
         description="Zip file that contains image,depth,ply files")],
     clothes_type:  Annotated[int, Query(description="type of clothes")],
@@ -117,11 +94,10 @@ async def temp_processing(
     with zipfile.ZipFile(zip_file_path, 'r') as unzip_file:
         unzip_file.extractall(task_folder_path)
 
-    run_temp_processing(task_folder_path=task_folder_path,
-                        tflite_model_path=Path('test_hrnet.tflite'),
-                        clothes_type=clothes_type,
-                        model_version=model_version)
-
+    run_img_kpt_processing(task_folder_path=task_folder_path,
+                           tflite_model_path=Path('test_hrnet.tflite'),
+                           clothes_type=clothes_type,
+                           model_version=model_version)
     # Return the result file as a response
     result_image_path = task_folder_path / 'result_image_v1.png'
     return FileResponse(
@@ -132,7 +108,7 @@ async def temp_processing(
     )
 
 
-@app.post('/api/server/rembg', tags=["rembg"],
+@app.post('/api/rembg', tags=["rembg"],
           response_class=FileResponse,
           responses={
     200: {
@@ -158,7 +134,7 @@ async def remove_background(
     )
 
 
-@app.post('/api/server/stable-diffusion', tags=["stable-diffusion"],
+@app.post('/api/inpainting', tags=["inpainting"],
           response_class=FileResponse,
           responses={
     200: {
@@ -166,8 +142,8 @@ async def remove_background(
         "description": "Return the background removed image.",
     }
 })
-async def in_painting_with_stable_diffusion(
-    prompt : Annotated[str, Body(description="Several words")],
+async def inpainting(
+    prompt: Annotated[str, Body(description="Several words")],
     image_file: UploadFile = File(..., media_type="image/png",
                                   description="Image file needs to run stable diffusion"),
     mask_file: UploadFile = File(..., media_type="image/png",
@@ -182,8 +158,9 @@ async def in_painting_with_stable_diffusion(
     with mask_file_path.open("wb") as f:
         f.write(await mask_file.read())
 
-    result_image_path = await run_in_painting_with_stable_diffusion(
-        image_file_path, mask_file_path, prompt)
+    result_image_path = await run_in_painting_with_stable_diffusion(image_file_path,
+                                                                    mask_file_path,
+                                                                    prompt)
 
     return FileResponse(
         result_image_path,
