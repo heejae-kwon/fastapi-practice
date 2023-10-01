@@ -27,7 +27,7 @@ C, S = np.array([959.5, 719.5]), np.array(
     [11.368751, 15.158334])  # center, scale
 
 # post-processing of prediction setiings
-target_weight = np.load('target_weight.npy')  # FIXED ???
+target_weight = np.load(Path('img_kpt/target_weight.npy'))  # FIXED ???
 gt_class_keypoints_dict = get_gt_class_keypoints_dict()  # fixed dictionary
 heatmap_height = 96  # = config.MODEL.HEATMAP_SIZE[1]
 heatmap_width = 72  # \ config.MODEL.HEATMAP_SIZE[0]
@@ -39,17 +39,15 @@ OKS_THRE = 0.9
 
 
 def run_img_kpt_processing(task_folder_path: Path,
-                              tflite_model_path: Path,
-                              model_version=1,
-                              clothes_type=1):
+                           tflite_model_path: Path,
+                           model_version=1,
+                           clothes_type=1):
 
     # 1 : 반팔 , 7 : 반바지 , 8 : 긴바지(pants)
     img_file = task_folder_path / 'image_file.jpg'
     res_file = task_folder_path / 'keypoint.json'
 
     # Model(TFLite) Load
-    tflite_file = 'test_hrnet.tflite'
-    print('tflite_file : ', tflite_file)
     # Load the TFLite model and allocate tensors
     interpreter = tf.lite.Interpreter(
         model_path=str(tflite_model_path.absolute()))
@@ -58,7 +56,7 @@ def run_img_kpt_processing(task_folder_path: Path,
     # Get input and output details(including the shape)
     input_details = interpreter.get_input_details()
     output_details = interpreter.get_output_details()
-    input_shape = input_details[0]['shape']
+    # input_shape = input_details[0]['shape']
 
     # Data load and transform
     data_numpy = cv2.imread(str(img_file), cv2.IMREAD_COLOR |
@@ -168,9 +166,9 @@ def run_img_kpt_processing(task_folder_path: Path,
         f'Successfully saved the model result for the RGB image as a json file ! ---> {res_file} ')
 
     if model_version == 1:
-        landmark_task_1(task_folder_path, clothes_type)
+        _landmark_task_1(task_folder_path, clothes_type)
     elif model_version == 2:
-        landmark_task_2(task_folder_path, clothes_type)
+        _landmark_task_2(task_folder_path, clothes_type)
 
     # zipFileName = task_id + "_result.zip"
     # zf = zipfile.ZipFile(os.path.join(task_folder_path, zipFileName), "w")
@@ -185,7 +183,7 @@ def run_img_kpt_processing(task_folder_path: Path,
 deg = 0.275
 
 
-def landmark_task_1(task_folder_path, clothes_type):
+def _landmark_task_1(task_folder_path, clothes_type):
     root = task_folder_path
     print('root :', root)
 
@@ -279,7 +277,7 @@ CX_DEPTH = 3.1304475870804731e+02
 CY_DEPTH = 2.3844389626620386e+02
 
 
-def landmark_task_2(task_folder_path, clothes_type):
+def _landmark_task_2(task_folder_path, clothes_type):
     root = task_folder_path
     print('root :', root)
 

@@ -56,8 +56,9 @@ def download_image(url):
     return PIL.Image.open(BytesIO(response.content)).convert("RGB")
 
 
-async def run_in_painting_with_stable_diffusion(img_path: Path,
+def run_in_painting_with_stable_diffusion(img_path: Path,
                                           mask_path: Path,
+                                          result_path: Path,
                                           prompt: str):
     # img_url = "https://raw.githubusercontent.com/CompVis/latent-diffusion/main/data/inpainting_examples/overture-creations-5sI6fQgYIuo.png"
     # mask_url = "https://raw.githubusercontent.com/CompVis/latent-diffusion/main/data/inpainting_examples/overture-creations-5sI6fQgYIuo_mask.png"
@@ -91,10 +92,7 @@ async def run_in_painting_with_stable_diffusion(img_path: Path,
     images.insert(0, image)
 
     result_img = image_grid(images, 1, num_samples + 1)
-    result_img_path = "hello.png"
-    result_img.save(Path(result_img_path), "PNG")
-
-    return result_img_path
+    result_img.save((result_path), "PNG")
 
 
 """### Gradio Demo"""
