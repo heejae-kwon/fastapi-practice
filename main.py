@@ -10,16 +10,21 @@ from img_kpt.img_kpt import run_img_kpt_processing
 
 import zipfile
 
-
+# Load API description from a markdown file
 api_desc = ""
 with open(Path('DESCRIPTION.md'), 'r') as f:
-    # api_desc = f.read()
-    pass
+    api_desc = f.read()
+
+tags_metadata = [
+    {
+        "name": "API Reference",
+    },
+]
 
 app = FastAPI(title="Model API",
               description=api_desc,
-              version="0.0.1",
-              # openapi_tags=tags_metadata
+              version="1.0.0",
+              openapi_tags=tags_metadata
               )
 
 
@@ -31,12 +36,15 @@ async def startup_event():
     pass
 
 
-@app.get("/api")
+@app.get("/",
+         include_in_schema=False
+         )
 async def root():
     return {"message": "Hello API"}
 
 
 @app.post('/api/v1.0/img-kpt',
+          tags=["API Reference"],
           status_code=status.HTTP_201_CREATED,
           response_class=FileResponse,
           responses={
@@ -57,23 +65,22 @@ async def root():
 async def image_keypoint(
     zip_file: Annotated[UploadFile, File(
         example="",
-        description="image, depth, ply 파일을 포함한 ZIP 파일")],
-    clothes_type:  Annotated[int, Query(description="옷 종류")],
-    model_version: Annotated[int, Query(description="모델버전")]
-
+        description="ZIP file containing images, depth, and ply files")],
+    clothes_type: Annotated[int, Query(description="Clothing type")],
+    model_version: Annotated[int, Query(description="Model version")]
 ):
     """
-- **Description**: 이 엔드포인트는 이미지 처리 및 키포인트 추출 작업을 수행합니다. 클라이언트는 이미지 파일과 함께 작업에 필요한 기타 파라미터들을 업로드합니다.
+    - **Description**: This endpoint performs image processing and keypoint extraction. Clients upload image files and other necessary parameters for the operation.
 
-- **Request Parameters**:
-    - **`zip_file`**: image, depth, ply 파일을 포함한 ZIP 파일 (업로드)
-    - **`clothes_type`**: 의류 타입 (쿼리 파라미터)
-    - **`model_version`**: 모델 버전 (쿼리 파라미터)
+    - **Request Parameters**:
+        - **`zip_file`**: ZIP file containing images, depth, and ply files (upload)
+        - **`clothes_type`**: Clothing type (query parameter)
+        - **`model_version`**: Model version (query parameter)
 
-- **Response**: 처리된 이미지 파일 (PNG 형식)
-    - **Example:**
+    - **Response**: Processed image file (PNG format)
+        - **Example**:
 
-        ![https://i.imgur.com/OnO1yhum.png](https://i.imgur.com/OnO1yhum.png)
+            ![https://i.imgur.com/OnO1yhum.png](https://i.imgur.com/OnO1yhum.png)
     """
     if not zip_file:
         return {"errors": [
@@ -103,6 +110,7 @@ async def image_keypoint(
                                'img_kpt/model/test_hrnet.tflite'),
                            clothes_type=clothes_type,
                            model_version=model_version)
+
     # Return the result file as a response
     result_image_path = task_folder_path / 'result_image_v1.png'
     return FileResponse(
@@ -115,6 +123,7 @@ async def image_keypoint(
 
 
 @app.post('/api/v1.0/rembg',
+          tags=["API Reference"],
           status_code=status.HTTP_201_CREATED,
           response_class=FileResponse,
           responses={
@@ -134,28 +143,27 @@ async def image_keypoint(
           })
 async def remove_background(
     image_file: Annotated[UploadFile, File(media_type="image/png",
-                                           description="배경제거 할 이미지")]
+                                           description="Image to remove background from")]
 ):
     """
-- **Description**: 이 엔드포인트는 이미지의 배경을 제거하는 작업을 수행합니다. 클라이언트는 배경을 제거할 대상 이미지 파일을 업로드합니다.
+    - **Description**: This endpoint removes the background of an image. Clients upload the target image file for background removal.
 
-- **Request Parameters**:
-    - **`image_file`**: 배경을 제거할 이미지 파일 (업로드)
-        - **Example:**
+    - **Request Parameters**:
+        - **`image_file`**: Image file to remove the background from (upload)
+            - **Example**:
 
-            ![https://i.imgur.com/Q59kMlmm.jpg](https://i.imgur.com/Q59kMlmm.jpg)
-- **Response**: 배경이 제거된 이미지 파일 (PNG 형식)
-    - **Example:**
+                ![https://i.imgur.com/Q59kMlmm.jpg](https://i.imgur.com/Q59kMlmm.jpg)
+    - **Response**: Image file with the background removed (PNG format)
+        - **Example**:
 
-        ![https://i.imgur.com/CAooSIFm.png](https://i.imgur.com/CAooSIFm.png)
-"""
+            ![https://i.imgur.com/CAooSIFm.png](https://i.imgur.com/CAooSIFm.png)
+    """
     if not image_file:
         return {"error": "No file uploaded"}
 
     now_date = datetime.now()
     sub_folder_name = now_date.strftime("%Y%m%d%H%M%S%f")
-    task_folder_path = Path(
-        'rembg/temp_process_task_files') / sub_folder_name
+    task_folder_path = Path('rembg/temp_process_task_files') / sub_folder_name
     task_id = sub_folder_name
     task_folder_path.mkdir(parents=True, exist_ok=True)
 
@@ -175,6 +183,7 @@ async def remove_background(
 
 
 @app.post('/api/v1.0/inpainting',
+          tags=["API Reference"],
           status_code=status.HTTP_201_CREATED,
           response_class=FileResponse,
           responses={
@@ -193,33 +202,32 @@ async def remove_background(
                   "description": "Internal process error"},
           })
 async def inpainting(
-    prompt: Annotated[str, Body(description="stable diffusion 프롬프트")],
-    image_file: Annotated[UploadFile,  File(media_type="image/png",
-                                            description="이미지파일")],
+    prompt: Annotated[str, Body(description="Stable diffusion prompt")],
+    image_file: Annotated[UploadFile, File(media_type="image/png",
+                                           description="Image file")],
     mask_file: Annotated[UploadFile, File(media_type="image/png",
-                                          description="마스크이미지")]
+                                          description="Mask image")]
 ):
     """
-- **Description**: 이 엔드포인트는 Stable Diffusion을 사용하여 이미지를 보정하는 작업을 수행합니다. 클라이언트는 텍스트 프롬프트, 이미지, 그리고 마스크 이미지 파일을 업로드합니다.
+    - **Description**: This endpoint performs image correction using Stable Diffusion. Clients upload a text prompt, an image, and a mask image file.
 
-- **Request Parameters**:
-    - **`prompt`**: 텍스트 프롬프트 (바디)
-        - **Example: “***a mecha robot sitting on a bench***”**
-    - **`image_file`**: 작업에 사용할 이미지 파일 (업로드)
-        - **Example:**
+    - **Request Parameters**:
+        - **`prompt`**: Text prompt (body)
+            - **Example**: “***a mecha robot sitting on a bench***”
+        - **`image_file`**: Image file for the operation (upload)
+            - **Example**:
 
-            ![https://i.imgur.com/nlYnq9hm.png](https://i.imgur.com/nlYnq9hm.png)
+                ![https://i.imgur.com/nlYnq9hm.png](https://i.imgur.com/nlYnq9hm.png)
 
-    - **`mask_file`**: 마스크 이미지 파일 (업로드)
-        - **Example:**
+        - **`mask_file`**: Mask image file (upload)
+            - **Example**:
 
-            ![https://i.imgur.com/twjL8uBm.png](https://i.imgur.com/twjL8uBm.png)
+                ![https://i.imgur.com/twjL8uBm.png](https://i.imgur.com/twjL8uBm.png)
+    - **Response**: Corrected image file (PNG format)
+        - **Example**:
 
-- **Response**: 보정된 이미지 파일 (PNG 형식)
-    - **Example:**
-
-        ![https://i.imgur.com/rKYbwRpl.png](https://i.imgur.com/rKYbwRpl.png)
-"""
+            ![https://i.imgur.com/rKYbwRpl.png](https://i.imgur.com/rKYbwRpl.png)
+    """
     now_date = datetime.now()
     sub_folder_name = now_date.strftime("%Y%m%d%H%M%S%f")
     task_folder_path = Path(
@@ -228,8 +236,8 @@ async def inpainting(
     task_folder_path.mkdir(parents=True, exist_ok=True)
 
     image_file_path = task_folder_path / Path('diffusion_image.png')
-    mask_file_path = task_folder_path/Path('diffusion_mask_image.png')
-    result_image_path = task_folder_path/Path('diffusion_result_image.png')
+    mask_file_path = task_folder_path / Path('diffusion_mask_image.png')
+    result_image_path = task_folder_path / Path('diffusion_result_image.png')
 
     with image_file_path.open("wb") as f:
         f.write(await image_file.read())
