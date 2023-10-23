@@ -7,7 +7,7 @@ readme = "README.md"
 packages = [{include = "fastapi_test"}]
 
 [tool.poetry.dependencies]
-python = ">=3.9,<3.11"
+python = ">=3.9,<3.12"
 fastapi = "^0.103.1"
 uvicorn = "^0.23.2"
 gunicorn = "^21.2.0"
@@ -19,15 +19,15 @@ python-multipart = "^0.0.6"
 email-validator = "^2.0.0.post2"
 matplotlib = "^3.8.0"
 tqdm = "^4.66.1"
-torch = "2.0.0"
-torchvision = "0.15.1"
 scikit-image = "^0.21.0"
 ftfy = "^6.1.1"
 accelerate = "^0.23.0"
 transformers = "^4.33.2"
 diffusers = "^0.21.2"
-numpy = "1.23"
+numpy = "^1.23"
 tensorflow = "2.13"
+torch = "2.0.1"
+torchvision = "0.15.2"
 
 
 [build-system]
