@@ -12,5 +12,5 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import lib.models.pose_resnet
-import lib.models.pose_hrnet
+import strawberry.lib.models.pose_resnet as pose_resnet
+import strawberry.lib.models.pose_hrnet as pose_hrnet

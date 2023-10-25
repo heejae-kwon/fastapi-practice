@@ -22,22 +22,23 @@ import torch.utils.data
 import torch.utils.data.distributed
 import torchvision.transforms as transforms
 
-from lib.config import cfg
-from lib.config import update_config
-from lib.core.loss import JointsMSELoss
-from lib.core.function import validate
-from lib.utils.utils import create_logger
+from .lib.config import cfg
+from .lib.config import update_config
+from .lib.core.loss import JointsMSELoss
+from .lib.core.function import validate
+from .lib.utils.utils import create_logger
+from .tools.data_processing import create_coco_json, init_and_rename_imgs
 
-import lib.dataset
-import lib.models
+import strawberry.lib.dataset
+import strawberry.lib.models
 
 
-def parse_args():
+def _parse_args(predefined=""):
     parser = argparse.ArgumentParser(description='Train keypoints network')
     # general
     parser.add_argument('--cfg',
                         help='experiment configure file name',
-                        required=True,
+                        # required=True,
                         type=str)
 
     parser.add_argument('opts',
@@ -62,12 +63,17 @@ def parse_args():
                         type=str,
                         default='')
 
-    args = parser.parse_args()
+    args = parser.parse_args(predefined.split())
+
     return args
 
 
-def main():
-    args = parse_args()
+def run_strawberry(temp_dir: Path):
+    init_and_rename_imgs(temp_dir)
+    create_coco_json()
+
+    args = _parse_args(
+        "--cfg strawberry/experiments/keypoint_strawberry.yaml TEST.MODEL_FILE strawberry/models/strawberry_final_state.pth TEST.USE_GT_BBOX True")
     update_config(cfg, args)
 
     logger, final_output_dir, tb_log_dir = create_logger(
@@ -86,7 +92,7 @@ def main():
     torch.backends.cudnn.deterministic = cfg.CUDNN.DETERMINISTIC
     torch.backends.cudnn.enabled = cfg.CUDNN.ENABLED
 
-    model = eval('lib.models.'+cfg.MODEL.NAME+'.get_pose_net')(
+    model = eval('strawberry.lib.models.'+cfg.MODEL.NAME+'.get_pose_net')(
         cfg, is_train=False
     )
 
@@ -115,7 +121,7 @@ def main():
     normalize = transforms.Normalize(
         mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
     )
-    valid_dataset = eval('lib.dataset.'+cfg.DATASET.DATASET)(
+    valid_dataset = eval('strawberry.lib.dataset.'+cfg.DATASET.DATASET)(
         cfg, cfg.DATASET.ROOT, cfg.DATASET.TEST_SET, False,
         transforms.Compose([
             transforms.ToTensor(),
@@ -135,8 +141,10 @@ def main():
 
     # evaluate on validation set
     validate(cfg, valid_loader, valid_dataset, model, criterion,
-             final_output_dir, tb_log_dir)
+             str(temp_dir),  # final_output_dir,
+             str(temp_dir)  # tb_log_dir)
+             )
 
 
 if __name__ == '__main__':
-    main()
+    run_strawberry()

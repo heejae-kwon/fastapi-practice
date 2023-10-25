@@ -1,18 +1,19 @@
 # %%
-import time
-import numpy as np
 import os
-import argparse
 import zipfile
-import shutil
 import json
-import re
-import math
+import copy
+import cv2
+import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
-from os import path
-from utils.make_template_segmentation import make_img, make_cat, make_keypoints, make_anno
-from labelme2coco import get_coco_from_labelme_folder, save_json
+from PIL import Image
+from plyfile import PlyData
+
+
+
+
 
 # %%
 ## 데이터 디렉토리 경로 지정
@@ -272,30 +273,7 @@ for i, index_ in enumerate(size.shape[0]):
 # %%
 # 해당하는 열만 가져오기
 selected_rows = size[size['index'].isin(numbers)]
-
 # %%
-import os
-import os.path as osp
-import copy
-from tqdm import tqdm
-
-import json
-import math
-import numpy as np
-import pandas as pd
-from PIL import Image
-import imageio as iio
-import cv2
-import matplotlib.pyplot as plt
-
-from pyntcloud import PyntCloud
-from plyfile import PlyData
-
-import matplotlib.pyplot as plt
-
-from utils.size_info import getSizingPts
-from utils.text_position_info import position_info
-
 # %%
 # 점 찍는 함수
 def keypoint(id,output,image_dir):
@@ -413,6 +391,7 @@ def get_proj_depth(ply):
     return(proj_depth) 
 
 # %%
+
 with open(output_est, 'r') as f:
     kps_val_json = json.load(f)
 
@@ -630,7 +609,6 @@ imgid2kploc = {i : elem_['image_id'] for i, elem_ in enumerate(kps_val_json)}
 # %%
 img_values_list = list(imgid2img.values())
 ply_values_list = list(imgid2ply.values())
-
 # %%
 missing_rows = df[df['name'].isnull()]
 
@@ -797,8 +775,6 @@ merged_df = size_valid.merge(df, on='index')
 sum(merged_df.isnull())
 
 # %%
-from statsmodels.formula.api import ols
-from sklearn.linear_model import LinearRegression
 
 # %%
 def reg(width,height):

@@ -18,9 +18,9 @@ from pycocotools.cocoeval import COCOeval
 import json_tricks as json
 import numpy as np
 
-from lib.dataset.JointsDataset import JointsDataset
-from lib.nms.nms import oks_nms
-from lib.nms.nms import soft_oks_nms
+from .JointsDataset import JointsDataset
+from ..nms.nms import oks_nms
+from ..nms.nms import soft_oks_nms
 
 import time
 

@@ -39,10 +39,10 @@ OKS_THRE = 0.9
 
 
 def run_img_kpt_processing(task_folder_path: Path,
-                           tflite_model_path: Path,
                            model_version=1,
                            clothes_type=1):
 
+    tflite_model_path = Path("img_kpt/model/test_hrnet.tflite")
     # 1 : 반팔 , 7 : 반바지 , 8 : 긴바지(pants)
     img_file = task_folder_path / 'image_file.jpg'
     res_file = task_folder_path / 'keypoint.json'

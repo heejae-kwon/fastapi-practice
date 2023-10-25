@@ -8,7 +8,10 @@ from rembg.rembg import run_rembg
 from inpainting.inpainting import run_in_painting_with_stable_diffusion
 from img_kpt.img_kpt import run_img_kpt_processing
 
+
 import zipfile
+
+from strawberry.strawberry import run_strawberry
 
 # Load API description from a markdown file
 api_desc = ""
@@ -45,10 +48,10 @@ async def root():
 
 @app.post('/api/v1.0/img-kpt',
           tags=["API Reference"],
-          status_code=status.HTTP_201_CREATED,
+          status_code=status.HTTP_200_OK,
           response_class=FileResponse,
           responses={
-              201: {
+              200: {
                   "content": {"image/png": {"example": "(binary image data)"}},
                   "description": "Created",
               },
@@ -106,8 +109,6 @@ async def image_keypoint(
         unzip_file.extractall(task_folder_path)
 
     run_img_kpt_processing(task_folder_path=task_folder_path,
-                           tflite_model_path=Path(
-                               'img_kpt/model/test_hrnet.tflite'),
                            clothes_type=clothes_type,
                            model_version=model_version)
 
@@ -115,7 +116,7 @@ async def image_keypoint(
     result_image_path = task_folder_path / 'result_image_v1.png'
     return FileResponse(
         result_image_path,
-        status_code=status.HTTP_201_CREATED,
+        status_code=status.HTTP_200_OK,
         media_type='image/png',
         headers={
             "Content-Disposition": f"attachment; filename={task_id}_img_kpt_image_v1.png"}
@@ -124,10 +125,10 @@ async def image_keypoint(
 
 @app.post('/api/v1.0/rembg',
           tags=["API Reference"],
-          status_code=status.HTTP_201_CREATED,
+          status_code=status.HTTP_200_OK,
           response_class=FileResponse,
           responses={
-              201: {
+              200: {
                   "content": {"image/png": {"example": "(binary image data)"}},
                   "description": "Created",
               },
@@ -176,7 +177,7 @@ async def remove_background(
     return FileResponse(
         result_image_path,
         media_type='image/png',
-        status_code=status.HTTP_201_CREATED,
+        status_code=status.HTTP_200_OK,
         headers={
             "Content-Disposition": f"attachment; filename={task_id}_rembg_image_v1.png"}
     )
@@ -184,10 +185,10 @@ async def remove_background(
 
 @app.post('/api/v1.0/inpainting',
           tags=["API Reference"],
-          status_code=status.HTTP_201_CREATED,
+          status_code=status.HTTP_200_OK,
           response_class=FileResponse,
           responses={
-              201: {
+              200: {
                   "content": {"image/png": {"example": "(binary image data)"}},
                   "description": "Created",
               },
@@ -253,7 +254,68 @@ async def inpainting(
     return FileResponse(
         result_image_path,
         media_type='image/png',
-        status_code=status.HTTP_201_CREATED,
+        status_code=status.HTTP_200_OK,
         headers={
             "Content-Disposition": f"attachment; filename={task_id}_inpainting_image_v1.png"}
+    )
+
+
+@app.post('/api/v1.0/strawberry',
+          tags=["API Reference"],
+          status_code=status.HTTP_200_OK,
+          response_class=FileResponse,
+          responses={
+              200: {
+                  "content": {"image/png": {"example": "(binary image data)"}},
+                  "description": "Created",
+              },
+              422: {
+                  "content": {"application/json": {
+                      "example": {"errors": [
+                          {
+                              "title": "Failed internal process"
+                          }
+                      ]}
+                  }},
+                  "description": "Internal process error"},
+          })
+async def strawberry(
+    image_file: Annotated[UploadFile, File(media_type="image/png",
+                                           description="Strawberry image for size measurement")]
+):
+    """
+    - **Description**: This endpoint measures the size of a strawberry from the provided image.
+
+    - **Request Parameters**:
+        - **`image_file`**: Strawberry image for size measurement (upload)
+            - **Example**:
+
+                ![https://i.imgur.com/gAQt0lLm.jpg](https://i.imgur.com/gAQt0lLm.jpg)
+    - **Response**: Image file with the strawberry's size measurement (PNG format)
+        - **Example**:
+
+            ![https://i.imgur.com/DzQazmGm.jpg](https://i.imgur.com/DzQazmGm.jpg)
+    """
+    if not image_file:
+        return {"error": "No file uploaded"}
+
+    now_date = datetime.now()
+    sub_folder_name = now_date.strftime("%Y%m%d%H%M%S%f")
+    task_folder_path = Path(
+        'strawberry/temp_process_task_files') / sub_folder_name
+    task_id = sub_folder_name
+    task_folder_path.mkdir(parents=True, exist_ok=True)
+
+    image_file_path = task_folder_path / Path('input.jpg')
+    with image_file_path.open("wb") as f:
+        f.write(await image_file.read())
+
+    result_image_path = run_strawberry(task_folder_path)
+
+    return FileResponse(
+        result_image_path,
+        media_type='image/png',
+        status_code=status.HTTP_200_OK,
+        headers={
+            "Content-Disposition": f"attachment; filename={task_id}_strawberry_image_v1.png"}
     )
