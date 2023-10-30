@@ -3,7 +3,6 @@ import copy
 import cv2
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 
 from PIL import Image
 from plyfile import PlyData
@@ -13,7 +12,7 @@ from pathlib import Path
 # 데이터 디렉토리 경로 지정
 
 
-def keypoint(id, output, image_dir):
+def _get_line_from_keypoint(id, output, image_dir):
     with open(output, 'r') as f:
         keypoint_json = json.load(f)
 
@@ -220,7 +219,7 @@ def kpt_visualization(temp_dir: Path):
     #     plt.imshow(img)
     #     return(img)
 
-    img, img_id, line_k = keypoint(0, output_est, img_path)
+    img, img_id, line_k = _get_line_from_keypoint(0, output_est, img_path)
     img = _drawLine(img, line_k)
     img = _drawText(img, df, img_id, line_k)
     # plt.imshow(img)
