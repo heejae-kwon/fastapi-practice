@@ -21,19 +21,19 @@ def _get_line_from_keypoint(id, output, image_dir):
 
     if image_id < 10:
         img = cv2.imread('{0}/00000{1}.jpg'.format(image_dir, image_id))
-        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        #img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
 
     elif image_id < 100:
         img = cv2.imread('{0}/0000{1}.jpg'.format(image_dir, image_id))
-        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        #img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
 
     elif image_id < 1000:
         img = cv2.imread('{0}/000{1}.jpg'.format(image_dir, image_id))
-        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        #img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
 
     elif image_id < 10000:
         img = cv2.imread('{0}/0000{1}.jpg'.format(image_dir, image_id))
-        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        #img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
 
     kpt = keypoints[:12]
     line_k = []
