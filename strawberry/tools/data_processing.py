@@ -9,9 +9,8 @@ from pathlib import Path
 dir = Path('strawberry/data/validation')
 
 
-def init_and_rename_imgs(src_dir: Path):
+def init_and_rename_data(src_dir: Path, dest_dir: Path):
     # 이미지 파일 초기화 및 이름 변경
-    dest_dir = dir / "image"
 
     try:
         # 대상 디렉토리 경로
@@ -28,18 +27,19 @@ def init_and_rename_imgs(src_dir: Path):
     except Exception as e:
         print(f"오류가 발생했습니다: {e}")
 
+    dest_dir.mkdir(parents=True, exist_ok=True)
     for src_file in src_dir.glob('**/*'):
         if src_file.is_file():
             dest_file = dest_dir / src_file.relative_to(src_dir)
-            dest_file.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy(str(src_file), str(dest_file))
 
-    img_files = list(dest_dir.glob('*.jpg'))  # + list(dest_dir.glob('*.png'))
+    img_files = (dest_dir.glob('**/*'))  # + list(dest_dir.glob('*.png'))
     for index, img_file in enumerate(img_files):
-        extension = img_file.suffix
-        new_file_name = f"{index:06d}{extension}"
-        new_file_path = dest_dir / new_file_name
-        img_file.rename(new_file_path)
+        if img_file.is_file():
+            extension = img_file.suffix
+            new_file_name = f"{index:06d}{extension}"
+            new_file_path = dest_dir / new_file_name
+            img_file.rename(new_file_path)
 
 
 def _make_img(sorted_numbers, sorted_image_list, ind_):

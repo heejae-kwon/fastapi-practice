@@ -5,3 +5,4 @@ gunicorn-access.log
 *.jpg
 *.png
 *.pt
+*.ply

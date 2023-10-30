@@ -281,7 +281,9 @@ async def inpainting(
           })
 async def strawberry(
     image_file: Annotated[UploadFile, File(media_type="image/png",
-                                           description="Strawberry image for size measurement")]
+                                           description="Strawberry image for size measurement")],
+    ply_file: Annotated[UploadFile, File(media_type="text/plain",
+                                         description="Strawberry ply for size measurement")]
 ):
     """
     - **Description**: This endpoint measures the size of a strawberry from the provided image.
@@ -306,9 +308,15 @@ async def strawberry(
     task_id = sub_folder_name
     task_folder_path.mkdir(parents=True, exist_ok=True)
 
-    image_file_path = task_folder_path / Path('input.jpg')
+    image_file_path = task_folder_path / 'image' / Path('image.jpg')
+    image_file_path.parent.mkdir(parents=True, exist_ok=True)
     with image_file_path.open("wb") as f:
         f.write(await image_file.read())
+
+    ply_file_path = task_folder_path / 'ply' / Path('ply.ply')
+    ply_file_path.parent.mkdir(parents=True, exist_ok=True)
+    with ply_file_path.open("wb") as f:
+        f.write(await ply_file.read())
 
     result_image_path = run_strawberry(task_folder_path)
 

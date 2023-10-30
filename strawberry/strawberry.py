@@ -27,7 +27,8 @@ from .lib.config import update_config
 from .lib.core.loss import JointsMSELoss
 from .lib.core.function import validate
 from .lib.utils.utils import create_logger
-from .tools.data_processing import create_coco_json, init_and_rename_imgs
+from .tools.data_processing import create_coco_json, init_and_rename_data
+from .tools.keypoint_visualization import kpt_visualization
 
 import strawberry.lib.dataset
 import strawberry.lib.models
@@ -69,9 +70,13 @@ def _parse_args(predefined=""):
 
 
 def run_strawberry(temp_dir: Path):
-    init_and_rename_imgs(temp_dir)
+    init_and_rename_data(
+        temp_dir/'image', Path('strawberry/data/validation/image'))
+    init_and_rename_data(
+        temp_dir/'ply', Path('strawberry/data/validation/ply'))
     create_coco_json()
 
+    ### origin code
     args = _parse_args(
         "--cfg strawberry/experiments/keypoint_strawberry.yaml TEST.MODEL_FILE strawberry/models/strawberry_final_state.pth TEST.USE_GT_BBOX True")
     update_config(cfg, args)
@@ -83,7 +88,7 @@ def run_strawberry(temp_dir: Path):
     logger.info(cfg)
 
     if torch.cuda.is_available():
-        device = torch.device("cuda:0")
+        device = torch.device("cuda")
         batch_size = cfg.TEST.BATCH_SIZE_PER_GPU * torch.cuda.device_count()
         logger.info("Let's use %d GPUs!" % torch.cuda.device_count())
 
@@ -144,6 +149,9 @@ def run_strawberry(temp_dir: Path):
              str(temp_dir),  # final_output_dir,
              str(temp_dir)  # tb_log_dir)
              )
+
+    ######
+    return kpt_visualization(temp_dir)
 
 
 if __name__ == '__main__':
