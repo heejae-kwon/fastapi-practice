@@ -1,12 +1,3 @@
-# %%
-
-# %%
-
-# %% [markdown]
-# # 데이터 압축 해제 후 파일명까지 변경한 이후 과정
-
-# %%
-
 import json
 import re
 import shutil
@@ -49,8 +40,6 @@ def init_and_rename_imgs(src_dir: Path):
         new_file_name = f"{index:06d}{extension}"
         new_file_path = dest_dir / new_file_name
         img_file.rename(new_file_path)
-
-# 예시 사용:
 
 
 def _make_img(sorted_numbers, sorted_image_list, ind_):
