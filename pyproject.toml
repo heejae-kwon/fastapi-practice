@@ -26,8 +26,11 @@ transformers = "^4.33.2"
 diffusers = "^0.21.2"
 numpy = "^1.23"
 tensorflow = "2.13"
-torch = "2.0.1"
-torchvision = "0.15.2"
+torch = "^2.1.0"
+torchvision = "^0.16.0"
+yacs = "^0.1.8"
+pycocotools = "^2.0.7"
+json-tricks = "^3.17.3"
 
 
 [build-system]

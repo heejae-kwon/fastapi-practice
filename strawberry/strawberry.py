@@ -74,11 +74,11 @@ def run_strawberry(temp_dir: Path):
         temp_dir/'image', Path('strawberry/data/validation/image'))
     init_and_rename_data(
         temp_dir/'ply', Path('strawberry/data/validation/ply'))
-    create_coco_json()
+    # create_coco_json()
 
-    ### origin code
+    # origin code
     args = _parse_args(
-        "--cfg strawberry/experiments/keypoint_strawberry.yaml TEST.MODEL_FILE strawberry/models/strawberry_final_state.pth TEST.USE_GT_BBOX True")
+        "--cfg strawberry/experiments/keypoint_strawberry.yaml TEST.MODEL_FILE strawberry/models/final_state_hj.pth TEST.USE_GT_BBOX True")
     update_config(cfg, args)
 
     logger, final_output_dir, tb_log_dir = create_logger(
